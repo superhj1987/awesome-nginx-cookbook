@@ -1,5 +1,8 @@
-#Nginx_codebook
+nginx_codebook is a project to study nginx, include the analysis of the nginx source code and the develop of the nginx module and so on.
+
+
+Introduction
 ==============
 
-1. nginx_source_analisis.md: Analysis of the nginx code
-2. modules: examples of nginx module
+* nginx_source_analisis.md: Analysis of the nginx code
+* modules: examples of nginx module

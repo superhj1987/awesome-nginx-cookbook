@@ -8,7 +8,7 @@ nginx启动后，会有一个master进程和多个worker进程。master进程主
 
 **nginx的进程模型**，如下图所示：
 
-![](img/ngx_thread_model.png "")
+![](imgs/ngx_thread_model.png "")
 
 **事件模型**  
 
@@ -55,25 +55,121 @@ nginx实现中有很多结构体，一般命名为ngx_XXX_t。这些结构体分
 
 * ngx_pool_t
 
-		struct ngx_pool_s {    		ngx_pool_data_t       d;    		size_t                max;    		ngx_pool_t           *current;    		ngx_chain_t          *chain;    		ngx_pool_large_t     *large;    		ngx_pool_cleanup_t   *cleanup;    		ngx_log_t            *log;		};
-* ngx_array_t		struct ngx_array_s {    		void        *elts;    		ngx_uint_t   nelts;    		size_t       size;    		ngx_uint_t   nalloc;    		ngx_pool_t  *pool;		};
+		struct ngx_pool_s {
+    		ngx_pool_data_t       d;
+    		size_t                max;
+    		ngx_pool_t           *current;
+    		ngx_chain_t          *chain;
+    		ngx_pool_large_t     *large;
+    		ngx_pool_cleanup_t   *cleanup;
+    		ngx_log_t            *log;
+		};
+* ngx_array_t
+
+		struct ngx_array_s {
+    		void        *elts;
+    		ngx_uint_t   nelts;
+    		size_t       size;
+    		ngx_uint_t   nalloc;
+    		ngx_pool_t  *pool;
+		};
 	
 * ngx_hash_t
 	* ngx_hash_t不像其他的hash表的实现，可以插入删除元素，只能一次初始化。
 	* 解决冲突使用的是开链法，但实际上是开了一段连续的存储空间，和数组差不多。
 	
-			typedef struct {    			ngx_hash_t       *hash;    			ngx_hash_key_pt   key;    			ngx_uint_t        max_size;    			ngx_uint_t        bucket_size;    			char             *name;    			ngx_pool_t       *pool;    			ngx_pool_t       *temp_pool;			} ngx_hash_init_t;
-* ngx_chain_t
-		struct ngx_chain_s {    		ngx_buf_t    *buf;    		ngx_chain_t  *next;		};
-* ngx_buf_t
-		struct ngx_buf_s {    		u_char          *pos;    		u_char          *last;    		off_t            file_pos;    		off_t            file_last;    		u_char          *start;         /* start of buffer */    		u_char          *end;           /* end of buffer */    		ngx_buf_tag_t    tag;    		ngx_file_t      *file;    		ngx_buf_t       *shadow;    		/* the buf's content could be changed */    		unsigned         temporary:1;    		/*     		* the buf's content is in a memory cache or in a read only memory     		* and must not be changed     		*/    		unsigned         memory:1;    		/* the buf's content is mmap()ed and must not be changed */    		unsigned         mmap:1;    		unsigned         recycled:1;    		unsigned         in_file:1;   			unsigned         flush:1;    		unsigned         sync:1;    		unsigned         last_buf:1;    		unsigned         last_in_chain:1;    		unsigned         last_shadow:1;    		unsigned         temp_file:1;    		/* STUB */ int   num;		};
-* ngx_list_t		typedef struct {    		ngx_list_part_t  *last;    		ngx_list_part_t   part;    		size_t            size;    		ngx_uint_t        nalloc;    		ngx_pool_t       *pool;		} ngx_list_t;
-		struct ngx_list_part_s {    		void             *elts;    		ngx_uint_t        nelts;    		ngx_list_part_t  *next;		};
-* ngx_queue_t 
-		struct ngx_queue_s {    		ngx_queue_t  *prev;    		ngx_queue_t  *next;		};
-		链表节点的数据成员并没有生命在链表节点的结构体中，只是声明了前向和后向指针。使用的时候需要定义一个哨兵节点。具体存放数据的节点称之为数据节点。对于数据节点，需要在数据结构体中加入一个类型为ngx_queue_s的域。使用下面的函数进行数据插入，其中x为数据节点的queue_t域。
-		#define ngx_queue_insert_head(h, x)                         \    		(x)->next = (h)->next;                                  \    		(x)->next->prev = x;                                    \    		(x)->prev = h;                                          \    		(h)->next = x		#define ngx_queue_insert_after   ngx_queue_insert_head		#define ngx_queue_insert_tail(h, x)                          \    		(x)->prev = (h)->prev;                                   \    		(x)->prev->next = x;                                     \    		(x)->next = h;                                           \    		(h)->prev = x
-    	获得数据时，使用ngx_queue_data()宏。    	#define ngx_queue_data(q, type, link)                        \    		(type *) ((u_char *) q - offsetof(type, link))    		
+			typedef struct {
+    			ngx_hash_t       *hash;
+    			ngx_hash_key_pt   key;
+
+    			ngx_uint_t        max_size;
+    			ngx_uint_t        bucket_size;
+
+    			char             *name;
+    			ngx_pool_t       *pool;
+    			ngx_pool_t       *temp_pool;
+			} ngx_hash_init_t;
+* ngx_chain_t
+		struct ngx_chain_s {
+    		ngx_buf_t    *buf;
+    		ngx_chain_t  *next;
+		};
+* ngx_buf_t
+
+		struct ngx_buf_s {
+    		u_char          *pos;
+    		u_char          *last;
+    		off_t            file_pos;
+    		off_t            file_last;
+
+    		u_char          *start;         /* start of buffer */
+    		u_char          *end;           /* end of buffer */
+    		ngx_buf_tag_t    tag;
+    		ngx_file_t      *file;
+    		ngx_buf_t       *shadow;
+
+
+    		/* the buf's content could be changed */
+    		unsigned         temporary:1;
+
+    		/*
+     		* the buf's content is in a memory cache or in a read only memory
+     		* and must not be changed
+     		*/
+    		unsigned         memory:1;
+
+    		/* the buf's content is mmap()ed and must not be changed */
+    		unsigned         mmap:1;
+
+    		unsigned         recycled:1;
+    		unsigned         in_file:1;
+   			unsigned         flush:1;
+    		unsigned         sync:1;
+    		unsigned         last_buf:1;
+    		unsigned         last_in_chain:1;
+
+    		unsigned         last_shadow:1;
+    		unsigned         temp_file:1;
+
+    		/* STUB */ int   num;
+		};
+* ngx_list_t
+
+		typedef struct {
+    		ngx_list_part_t  *last;
+    		ngx_list_part_t   part;
+    		size_t            size;
+    		ngx_uint_t        nalloc;
+    		ngx_pool_t       *pool;
+		} ngx_list_t;
+		struct ngx_list_part_s {
+    		void             *elts;
+    		ngx_uint_t        nelts;
+    		ngx_list_part_t  *next;
+		};
+* ngx_queue_t 
+		struct ngx_queue_s {
+    		ngx_queue_t  *prev;
+    		ngx_queue_t  *next;
+		};
+		链表节点的数据成员并没有生命在链表节点的结构体中，只是声明了前向和后向指针。使用的时候需要定义一个哨兵节点。具体存放数据的节点称之为数据节点。对于数据节点，需要在数据结构体中加入一个类型为ngx_queue_s的域。使用下面的函数进行数据插入，其中x为数据节点的queue_t域。
+		#define ngx_queue_insert_head(h, x)                         \
+    		(x)->next = (h)->next;                                  \
+    		(x)->next->prev = x;                                    \
+    		(x)->prev = h;                                          \
+    		(h)->next = x
+
+		#define ngx_queue_insert_after   ngx_queue_insert_head
+
+		#define ngx_queue_insert_tail(h, x)                          \
+    		(x)->prev = (h)->prev;                                   \
+    		(x)->prev->next = x;                                     \
+    		(x)->next = h;                                           \
+    		(h)->prev = x
+    	获得数据时，使用ngx_queue_data()宏。
+    	#define ngx_queue_data(q, type, link)                        \
+    		(type *) ((u_char *) q - offsetof(type, link))
+    		
 ### 配置系统
 
 一个主配置文件+其他辅助的配置文件，nginx/conf。主配置文件nginx.conf包含若干配置项，每个配置项由配置指令和指令参数2各部分构成。  
