@@ -1,4 +1,4 @@
-nginx_codebook is a project to study nginx, include the analysis of the nginx source code and the develop of the nginx module and so on.
+nginx_cookbook is a project to study nginx, include the analysis of the nginx source code and the develop of the nginx module and so on.
 
 
 Introduction
