@@ -22,7 +22,7 @@ master与worker间的通信通过socketpair来实现。
 
 * nginx的进程模型
 
-![](imgs/ngx_thread_model.png "")
+![](imgs/ngx_threadmodel.png "")
 
 * 事件模型  
 
