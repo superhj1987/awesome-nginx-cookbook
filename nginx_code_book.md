@@ -160,8 +160,12 @@ nginx的filter模块在处理从别的filter模块或者是handler模块传递�
 			
 释放一个ngx_chain_t类型的对象。如果要释放整个chain，则迭代此链表，对每个节点使用此宏即可。
 
-			释放一个ngx_chain_t类型的对象。如果要释放整个chain，则迭代此链表，对每个节点使用此宏即可。
+			#define ngx_free_chain(pool, cl)                                             \
+    cl->next = pool->chain;                                                  \
+			pool->chain = cl	
 			
+对ngx_chaint_t类型的释放，并不是真的释放了内存，而仅仅是把这个对象挂在了这个pool对象的一个叫做chain的字段对应的chain上，以供下次从这个pool上分配ngx_chain_t类型对象的时候，快速的从这个pool->chain上取下链首元素就返回了，当然，如果这个链是空的，才会真的在这个pool上使用ngx_palloc函数进行分配。
+		
 * ngx_buf_t
 
 ngx_buf_t是ngx_chain_t的数据结点
@@ -412,11 +416,79 @@ Http Request处理过程：
 
 ![](imgs/ngx_request_process.png "")
 
+### filter处理
+
+nginx处理filter将所有的filter做成一个类似链表的东西，每次声明一个ngx_http_next_header_filter以及ngx_http_next_body_filter来保存当前的最前面的filter，然后再将自己的filter处理函数赋值给ngx_http_top_header_filter以及ngx_http_top_body_filter，这样也就是说最后面初始化的filter是最早处理的。
+
+最后被调用的header_filter和body_filter分别是ngx_http_header_filter_module和ngx_http_write_filter_module。
+
 ### 长连接
 
 当content-length已知时，可使用长连接。
 
 nginx使用延迟关闭ligering-close，即先关闭tcp连接的写，再等待一段时间后关掉连接的读。目的是读取客户端发来的剩下的数据。使用ligering_timeout用来防止服务器关闭时，恰巧客户端刚发送消息，导致出现没有任何错误信息的提示。
+
+### 内存管理
+
+nginx使用上面说过的内存池来管理内存。这里当从内存池存取数据的时候，nginx是分为两种类型来处理的：
+
+1. 小块数据，直接从内存池中取得数据
+2. 大块数据，直接malloc一块数据，然后保存到内存池中。
+
+大、小块数据的分割线是创建内存时传递进来的size和页大小之间的最小值。
+
+内存池结构如下所示：
+<pre>
+struct ngx_pool_s {
+    ngx_pool_data_t       d; //数据区的指针 
+    size_t                max; //内存池所能容纳的最大值
+    ngx_pool_t           *current; //指向当前的内存池的头
+    ngx_chain_t          *chain; //将所有的内存池都连接起来
+    ngx_pool_large_t     *large; //大的数据块
+    ngx_pool_cleanup_t   *cleanup; //清理函数链表
+    ngx_log_t            *log;
+};
+</pre>
+
+其中，ngx_pool_data_t包含了我们所需要操作这个内存池的数据的一些指针。
+<pre>
+typedef struct {
+    u_char               *last; //当前的数据区已经使用的数据结尾
+    u_char               *end; //当前内存池的结尾
+    ngx_pool_t           *next; //分配内存，内存池大小不够时，再分配一个内存池，连接到next指针上，即子内存池
+    ngx_uint_t            failed; //标记请求内存由于空间不够，需要重新分配一个子内存池的次数
+} ngx_pool_data_t;
+</pre>
+
+ngx_pool_large_t表示大块的内存。
+<pre>
+struct ngx_pool_large_s {
+    ngx_pool_large_t     *next;
+    void                 *alloc; //指向数据
+};
+</pre>
+
+ngx_pool_cleanup_t表示内存池中的数据的清理handler。
+<pre>
+struct ngx_pool_cleanup_s {
+    ngx_pool_cleanup_pt   handler; //清理函数
+    void                 *data; //传递给清理函数的数据
+    ngx_pool_cleanup_t   *next; //表示下一个清理handler，当destroy这个pool的时候会遍历清理handler链表，然后调用handler。
+};
+</pre>
+
+创建pool通过ngx_create_pool，其中传递的大小虽然是size，但是真正能使用的数据区大小是要减去ngx_pool_t的大小。这里有一个常量NGX_MAX_ALLOC_FROM_POOL，它和size之前的最小值是次内存池的最大值。
+<pre>
+#define NGX_MAX_ALLOC_FROM_POOL  (ngx_pagesize - 1)
+
+ngx_pool_t * ngx_create_pool(size_t size, ngx_log_t *log);
+</pre>
+
+从内存池中分配一块内存有三个函数分别是：ngx_palloc，ngx_calloc以及ngx_pnalloc。这三个函数的区别就是第一个函数分配的内存会对齐，第二个函数用来分配一块清零的内存，第三个函数分配的内存不会对齐。
+
+ngx_palloc中，会先去判断要分配的内存是否是大块内存（根据size是否大于pool->max），如果是大块则需要调用ngx_palloc_large;此外，当内存池满掉时，调用ngx_palloc_block重新分配一块内存然后链接到当前data的next上。
+
+在nginx中，只有大块内存提供了free接口，小块接口没有提供这个接口，小块内存只有当整个内存池被destroy掉时，才会被被释放掉。
 
 ### 启动过程
 
