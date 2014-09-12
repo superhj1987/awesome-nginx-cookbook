@@ -4,5 +4,6 @@ nginx_cookbook is a project to study nginx, include the analysis of the nginx so
 Introduction
 ==============
 
-* nginx_source_analisis.md: Analysis of the nginx code
+* nginx_code_book.md: Overall broswer of the nginx code
+* ngxin_code_book-bootstrap: Analysis of the bootstrap of the nginx
 * modules: examples of nginx module

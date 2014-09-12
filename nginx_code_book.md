@@ -527,8 +527,10 @@ ngx_conf_parse是分为词法分析和指令解析两个阶段：
 * 指令解析有nginx内建和第三方自定义另种解析机制
 
 #### 2、模块初始化
+加载和初始化模块是在ngx_init_cycle中完成的。调用各个模块的init_module对模块进行初始化。
 
 #### 3、master进程
+nginx启动过程中，如果是多进程方式启动，会调用ngx_master_process_cycle完成最后的启动工作。
 
 #### 4、worker进程
 
