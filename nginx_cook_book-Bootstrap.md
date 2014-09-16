@@ -49,7 +49,7 @@ main函数的处理过程总体上可以概括如下：
 	</pre>
 	多进程的情况下，调用ngx_master_process_cycle。单进程的情况下调用ngx_single_process_cycle完成最后的启动工作。
 	
-	整个启动过程中一个关键的变量init_cycle，其数据结构ngx_cycle_t如下所示：
+整个启动过程中一个关键的变量init_cycle，其数据结构ngx_cycle_t如下所示：
 
 <pre>
 struct ngx_cycle_s {
